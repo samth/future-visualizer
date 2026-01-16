@@ -33,21 +33,30 @@ jobs:
       - name: Check Racket version
         run: racket -v
 
-      - name: Install packages
+      - name: Install local packages
         run: |
-          raco pkg install --auto --no-setup --skip-installed \
+          raco pkg remove -i --force --no-setup \
+            future-visualizer-pict \
+            future-visualizer \
+            future-visualizer-typed || true
+          raco pkg install -i --auto --no-setup \
             ./future-visualizer-pict \
             ./future-visualizer \
             ./future-visualizer-typed
 
       - name: Setup packages
-        run: raco setup --check-pkg-deps --pkgs future-visualizer-pict future-visualizer future-visualizer-typed
+        run: raco setup -j 2 --check-pkg-deps --pkgs future-visualizer-pict future-visualizer future-visualizer-typed
+
+      - name: Install GUI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgtk2.0-0 libgtk-3-0
 
       - name: Run tests
         run: |
           raco test --drdr --package future-visualizer-pict
           xvfb-run raco test --drdr --package future-visualizer
-          raco test --drdr --package future-visualizer-typed
+          xvfb-run raco test --drdr --package future-visualizer-typed
 
       - name: Run specific test files
         run: |
