@@ -1,0 +1,56 @@
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+name: CI
+
+jobs:
+  test:
+    name: Test on Racket ${{ matrix.racket-variant }} (${{ matrix.racket-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        racket-variant: [CS]
+        racket-version: [current, stable]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Racket
+        uses: Bogdanp/setup-racket@v1.11
+        with:
+          architecture: x64
+          distribution: full
+          variant: ${{ matrix.racket-variant }}
+          version: ${{ matrix.racket-version }}
+          local_catalogs: $GITHUB_WORKSPACE
+          sudo: never
+
+      - name: Check Racket version
+        run: racket -v
+
+      - name: Install packages
+        run: |
+          raco pkg install --auto --no-setup --skip-installed \
+            ./future-visualizer-pict \
+            ./future-visualizer \
+            ./future-visualizer-typed
+
+      - name: Setup packages
+        run: raco setup --check-pkg-deps --pkgs future-visualizer-pict future-visualizer future-visualizer-typed
+
+      - name: Run tests
+        run: |
+          raco test --drdr --package future-visualizer-pict
+          xvfb-run raco test --drdr --package future-visualizer
+          raco test --drdr --package future-visualizer-typed
+
+      - name: Run specific test files
+        run: |
+          xvfb-run racket future-visualizer/future-visualizer/tests/trace.rkt
+          xvfb-run racket future-visualizer/future-visualizer/tests/visualizer.rkt
+          xvfb-run racket future-visualizer/future-visualizer/tests/blocks.rkt
