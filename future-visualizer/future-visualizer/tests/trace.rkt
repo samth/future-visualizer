@@ -1,10 +1,14 @@
 #lang racket/base 
-(require rackunit 
-         racket/future 
-         future-visualizer/private/visualizer-data 
-         (for-syntax racket/base 
+(require rackunit
+         racket/future
+         future-visualizer/private/visualizer-data
+         (for-syntax racket/base
                      future-visualizer/private/visualizer-data)
-         (only-in future-visualizer/trace trace-futures)
+         (only-in future-visualizer/trace
+                  trace-futures
+                  timeline-events
+                  start-future-tracing!
+                  stop-future-tracing!)
          "vtrace3.rkt") 
 
 #|
@@ -121,10 +125,36 @@ Invariants:
        (check-true (event? (event-block-handled-event b))) 
        (check-true (symbol? (event-prim-name b)))))
    
-   (let ([tr (build-trace vtrace-3)]) 
-     (check-future-timeline-ordering tr))]
-  [else 
-   (define l (trace-futures (let ([f (future (λ () (printf "hello\n")))]) 
-                              (sleep 0.1) 
-                              (touch f)))) 
+   (let ([tr (build-trace vtrace-3)])
+     (check-future-timeline-ordering tr))
+
+   ;; Test for issue #5394: visualize-futures should collect timeline events
+   ;; from parallel threads without "Empty timeline in log-output" error.
+   ;; This test simulates what visualize-futures does internally:
+   ;; start tracing, run parallel code, stop tracing, collect timeline.
+   (start-future-tracing!)
+   (define parallel-result
+     (let ([fs (for/list ([i (in-range 0 100)])
+                 (future (λ ()
+                           (for/sum ([j (in-range 0 100)])
+                             (* i j)))))])
+       (sleep 0.05)
+       (map touch fs)))
+   (stop-future-tracing!)
+   (define tl-after-parallel (timeline-events))
+   ;; Verify timeline-events returned non-empty results
+   (check-true (pair? tl-after-parallel)
+               "timeline-events should return non-empty list after parallel execution (issue #5394)")
+   (check-true (> (length tl-after-parallel) 0)
+               "timeline-events should capture events from parallel threads")
+   ;; Verify build-trace succeeds (doesn't throw "Empty timeline" error)
+   (define tr-parallel (build-trace tl-after-parallel))
+   (check-true (trace? tr-parallel)
+               "build-trace should succeed with timeline from parallel execution")
+   (check-true (> (trace-num-futures tr-parallel) 0)
+               "trace should contain futures from parallel execution")]
+  [else
+   (define l (trace-futures (let ([f (future (λ () (printf "hello\n")))])
+                              (sleep 0.1)
+                              (touch f))))
    (check-equal? l '())])
