@@ -39,11 +39,11 @@
   (begin (start-future-tracing!)
          (begin0 (begin e ...)
            (stop-future-tracing!)
-           (show-visualizer))))
+           (show-visualizer #:timeline (timeline-events)))))
 
 ;;visualize-futures-thunk : (-> any/c) -> any/c
-(define (visualize-futures-thunk thunk) 
+(define (visualize-futures-thunk thunk)
   (start-future-tracing!)
   (begin0 (thunk)
     (stop-future-tracing!)
-    (show-visualizer)))
+    (show-visualizer #:timeline (timeline-events))))
